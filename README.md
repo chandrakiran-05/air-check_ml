@@ -28,13 +28,20 @@ PM2.5 and PM10 are the dominant drivers of AQI.
 
 ## 📁 Structure
 ```
+├── public/                # static web app for Vercel (index.html + JSON data/model)
 ├── app.py                 # Streamlit dashboard
+├── src/export_web.py      # exports web model + data to public/
 ├── src/pipeline.py        # data loading, cleaning, training, evaluation
 ├── data/raw/city_day.csv  # dataset
 ├── models/                # metrics.json, test predictions (model .joblib generated)
 ├── .streamlit/config.toml # theme
 └── requirements.txt
 ```
+
+## 🌐 Web version (Vercel)
+`public/` is a static site (HTML + Plotly) with the same four tabs. The AQI predictor runs a
+gradient-boosting model (R² 0.90) exported to `public/model.json`, so predictions happen in the browser with no server.
+Regenerate it with `python -m src.export_web`. Vercel deploys `public/` directly (see `vercel.json`).
 
 ## 🚀 Run locally
 ```bash

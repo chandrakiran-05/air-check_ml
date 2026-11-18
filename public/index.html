@@ -1,0 +1,176 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AirSense India</title>
+<meta name="description" content="Air quality analysis and AQI prediction for 26 Indian cities, 2015-2020">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🌫️</text></svg>">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/plotly.js-dist-min@2.35.2/plotly.min.js"></script>
+<style>
+:root{--bg:#f4f7fb;--card:#fff;--ink:#14213d;--muted:#5c6b82;--line:#e2e8f0;--accent:#3282b8;--accent2:#0f4c75}
+@media (prefers-color-scheme:dark){:root{--bg:#0d1520;--card:#152233;--ink:#e6edf6;--muted:#93a3b8;--line:#24354a;--accent:#5aa9e6;--accent2:#1b5f8f}}
+*{box-sizing:border-box}
+body{margin:0;font-family:Inter,system-ui,sans-serif;background:var(--bg);color:var(--ink)}
+.wrap{max-width:1200px;margin:0 auto;padding:16px}
+.hero{background:linear-gradient(120deg,var(--accent2),var(--accent));color:#fff;border-radius:18px;padding:24px 28px;margin-bottom:16px}
+.hero h1{margin:0;font-size:1.9rem}.hero p{margin:6px 0 0;opacity:.9}
+.filters{display:flex;flex-wrap:wrap;gap:12px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px;margin-bottom:14px;align-items:end}
+.filters label{font-size:.8rem;color:var(--muted);display:flex;flex-direction:column;gap:4px}
+select,input{font:inherit;padding:7px 9px;border-radius:8px;border:1px solid var(--line);background:var(--bg);color:var(--ink)}
+select[multiple]{min-width:220px;height:92px}
+.tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px}
+.tab{border:1px solid var(--line);background:var(--card);color:var(--ink);padding:9px 16px;border-radius:999px;cursor:pointer;font:inherit;font-weight:600}
+.tab.active{background:var(--accent);color:#fff;border-color:var(--accent)}
+.panel{display:none}.panel.active{display:block}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;margin-bottom:12px}
+.kpi{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 16px}
+.kpi span{font-size:.8rem;color:var(--muted)}.kpi b{display:block;font-size:1.7rem;margin-top:4px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,460px),1fr));gap:12px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:8px;min-height:360px}
+.form{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px}
+.btn{grid-column:1/-1;background:var(--accent);color:#fff;border:0;border-radius:10px;padding:12px;font:inherit;font-weight:700;cursor:pointer}
+.result{display:flex;align-items:center;gap:18px;margin-top:14px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:18px}
+.result b{font-size:2.4rem}.badge{padding:8px 18px;border-radius:999px;color:#fff;font-weight:700}
+.note{color:var(--muted);font-size:.85rem}
+footer{text-align:center;color:var(--muted);font-size:.8rem;padding:20px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="hero"><h1>🌫️ AirSense India</h1><p>Exploring and predicting air quality across 26 Indian cities, 2015–2020 · CPCB data via Kaggle</p></div>
+
+  <div class="filters">
+    <label>Cities (Ctrl/Cmd-click for several)<select id="cities" multiple></select></label>
+    <label>From year<select id="y0"></select></label>
+    <label>To year<select id="y1"></select></label>
+    <label>Pollutant<select id="pol"></select></label>
+  </div>
+
+  <div class="tabs">
+    <button class="tab active" data-p="ov">📊 Overview</button>
+    <button class="tab" data-p="tr">🗓️ Trends &amp; Seasons</button>
+    <button class="tab" data-p="pr">🤖 AQI Predictor</button>
+    <button class="tab" data-p="mp">📈 Model Performance</button>
+  </div>
+
+  <section class="panel active" id="ov">
+    <div class="kpis" id="kpis"></div>
+    <div class="grid"><div class="card" id="cityBar"></div><div class="card" id="bucketPie"></div></div>
+    <div class="card" id="corr" style="margin-top:12px;min-height:480px"></div>
+  </section>
+
+  <section class="panel" id="tr">
+    <div class="card" id="trend"></div>
+    <div class="grid" style="margin-top:12px"><div class="card" id="season"></div><div class="card" id="lock"></div></div>
+  </section>
+
+  <section class="panel" id="pr">
+    <p class="note">Defaults are dataset medians. Adjust values and the gradient-boosting model estimates AQI, running right in your browser.</p>
+    <form class="form" id="pform"></form>
+    <div class="result" id="result" hidden><div><span class="note">Predicted AQI</span><b id="aqiVal"></b></div><span class="badge" id="badge"></span></div>
+  </section>
+
+  <section class="panel" id="mp">
+    <div class="kpis" id="mkpis"></div>
+    <div class="grid"><div class="card" id="imp"></div><div class="card" id="scatter"></div></div>
+    <p class="note" id="mnote"></p>
+  </section>
+  <footer>Data: Vopani, <i>Air Quality Data in India (2015–2020)</i>, Kaggle (CPCB)</footer>
+</div>
+
+<script>
+const POL=["PM2.5","PM10","NO","NO2","NOx","NH3","CO","SO2","O3","Benzene","Toluene","Xylene"];
+const COLORS={"Good":"#2e9d5b","Satisfactory":"#9ccc3c","Moderate":"#f2c12e","Poor":"#f08a24","Very Poor":"#d7372f","Severe":"#7d1f3c"};
+const LIMITS=[[50,"Good"],[100,"Satisfactory"],[200,"Moderate"],[300,"Poor"],[400,"Very Poor"],[Infinity,"Severe"]];
+const SEASON=m=>[12,1,2].includes(m)?"Winter":m<=5?"Summer":m<=9?"Monsoon":"Post-monsoon";
+const bucket=a=>LIMITS.find(([l])=>a<=l)[1];
+const $=id=>document.getElementById(id);
+const dark=matchMedia("(prefers-color-scheme: dark)").matches;
+const LAY={paper_bgcolor:"rgba(0,0,0,0)",plot_bgcolor:"rgba(0,0,0,0)",font:{family:"Inter",color:dark?"#e6edf6":"#14213d"},margin:{l:60,r:20,t:50,b:45},xaxis:{gridcolor:dark?"#24354a":"#e2e8f0"},yaxis:{gridcolor:dark?"#24354a":"#e2e8f0"}};
+const CFG={responsive:true,displayModeBar:false};
+const plot=(id,data,layout)=>Plotly.react(id,data,{...LAY,...layout,xaxis:{...LAY.xaxis,...(layout.xaxis||{})},yaxis:{...LAY.yaxis,...(layout.yaxis||{})}},CFG);
+const mean=a=>{a=a.filter(v=>v!=null);return a.length?a.reduce((s,v)=>s+v,0)/a.length:null};
+const wmean=(rows,k)=>{let s=0,n=0;rows.forEach(r=>{if(r[k]!=null){s+=r[k]*r.n;n+=r.n}});return n?s/n:null};
+const fmt=(v,d=0)=>v==null?"–":v.toLocaleString(undefined,{maximumFractionDigits:d,minimumFractionDigits:d});
+let D,M,MET;
+
+function predict(x){let s=M.init;for(const t of M.trees){let n=0;while(t.l[n]!==-1)n=x[M.features[t.f[n]]]<=t.t[n]?t.l[n]:t.r[n];s+=M.lr*t.v[n]}return s}
+
+function filtered(){
+  const sel=[...$("cities").selectedOptions].map(o=>o.value);
+  const y0=+$("y0").value,y1=+$("y1").value;
+  return D.rows.filter(r=>(!sel.length||sel.includes(r.c))&&+r.m.slice(0,4)>=y0&&+r.m.slice(0,4)<=y1);
+}
+
+function render(){
+  const rows=filtered(),p=$("pol").value;
+  // KPIs
+  const days=rows.reduce((s,r)=>s+r.n,0);
+  const bt={};rows.forEach(r=>Object.entries(r.b).forEach(([k,v])=>bt[k]=(bt[k]||0)+v));
+  const bsum=Object.values(bt).reduce((a,b)=>a+b,0)||1;
+  const poor=((bt["Poor"]||0)+(bt["Very Poor"]||0)+(bt["Severe"]||0))/bsum*100;
+  $("kpis").innerHTML=[["Daily records",fmt(days)],["Mean AQI",fmt(wmean(rows,"AQI"))],[`Mean ${p}`,fmt(wmean(rows,p),1)],["Days Poor or worse",fmt(poor,1)+"%"]]
+    .map(([k,v])=>`<div class="kpi"><span>${k}</span><b>${v}</b></div>`).join("");
+  // City bar
+  const byCity={};rows.forEach(r=>(byCity[r.c]=byCity[r.c]||[]).push(r));
+  const cs=Object.entries(byCity).map(([c,rs])=>[c,wmean(rs,p)]).filter(d=>d[1]!=null).sort((a,b)=>a[1]-b[1]);
+  plot("cityBar",[{type:"bar",orientation:"h",x:cs.map(d=>d[1]),y:cs.map(d=>d[0]),marker:{color:cs.map(d=>d[1]),colorscale:"OrRd"}}],{title:`Mean ${p} by city`,margin:{l:110,r:20,t:50,b:40},height:Math.max(360,cs.length*22+90)});
+  // Bucket pie
+  const bk=Object.keys(COLORS).filter(k=>bt[k]);
+  plot("bucketPie",[{type:"pie",hole:.5,labels:bk,values:bk.map(k=>bt[k]),marker:{colors:bk.map(k=>COLORS[k])},sort:false}],{title:"AQI category share"});
+  // Trend
+  const tr=Object.entries(byCity).map(([c,rs])=>({type:"scatter",mode:"lines",name:c,x:rs.map(r=>r.m+"-01"),y:rs.map(r=>r[p])}));
+  plot("trend",tr,{title:`Monthly mean ${p}`,height:420,legend:{orientation:"h",y:-0.2}});
+  // Season
+  const order=["Winter","Summer","Monsoon","Post-monsoon"],sc={Winter:"#3282b8",Summer:"#f08a24",Monsoon:"#2e9d5b","Post-monsoon":"#9b5de5"};
+  plot("season",order.map(s=>({type:"box",name:s,marker:{color:sc[s]},y:rows.filter(r=>SEASON(+r.m.slice(5))===s).map(r=>r[p])})),{title:`${p} by season (monthly means)`,showlegend:false});
+  // Lockdown: Apr-May 2020 vs 2019 (ignores year filter)
+  const sel=[...$("cities").selectedOptions].map(o=>o.value);
+  const lk=[];new Set(D.rows.map(r=>r.c)).forEach(c=>{if(sel.length&&!sel.includes(c))return;
+    const g=y=>mean(D.rows.filter(r=>r.c===c&&(r.m===y+"-04"||r.m===y+"-05")).map(r=>r[p]));
+    const a=g(2019),b=g(2020);if(a&&b)lk.push([c,(b/a-1)*100])});
+  lk.sort((a,b)=>a[1]-b[1]);
+  plot("lock",[{type:"bar",orientation:"h",x:lk.map(d=>d[1]),y:lk.map(d=>d[0]),marker:{color:lk.map(d=>d[1]<0?"#2e9d5b":"#d7372f")}}],{title:`Lockdown effect on ${p} (Apr–May 2020 vs 2019, %)`,margin:{l:110,r:20,t:50,b:40}});
+}
+
+function initStatic(){
+  const c=D.corr;
+  plot("corr",[{type:"heatmap",z:c.z,x:c.labels,y:c.labels,zmin:-1,zmax:1,colorscale:"RdBu",reversescale:true,text:c.z.map(r=>r.map(v=>v.toFixed(2))),texttemplate:"%{text}",textfont:{size:10}}],{title:"Pollutant correlation (all daily data)",height:480,margin:{l:80,r:20,t:50,b:80}});
+  $("mkpis").innerHTML=[["R² score",MET.r2],["MAE",MET.mae],["RMSE",MET.rmse],["Category accuracy",(MET.bucket_accuracy*100).toFixed(1)+"%"]]
+    .map(([k,v])=>`<div class="kpi"><span>${k}</span><b>${v}</b></div>`).join("");
+  const imp=Object.entries(MET.importance).reverse();
+  plot("imp",[{type:"bar",orientation:"h",x:imp.map(d=>d[1]),y:imp.map(d=>d[0]),marker:{color:"#3282b8"}}],{title:"Feature importance",margin:{l:80,r:20,t:50,b:40}});
+  const mx=Math.max(...MET.sample.actual,...MET.sample.predicted);
+  plot("scatter",[{type:"scattergl",mode:"markers",x:MET.sample.actual,y:MET.sample.predicted,marker:{opacity:.45,color:"#3282b8",size:5},name:"test"},{type:"scatter",mode:"lines",x:[0,mx],y:[0,mx],line:{dash:"dash",color:"grey"},name:"ideal"}],{title:"Actual vs predicted AQI (test sample)",xaxis:{title:"Actual"},yaxis:{title:"Predicted"},showlegend:false});
+  $("mnote").textContent=`${MET.algorithm} · ${MET.n_train.toLocaleString()} train / ${MET.n_test.toLocaleString()} test rows · 80/20 split`;
+  // Predictor form
+  const f=$("pform");
+  f.innerHTML=POL.map(k=>`<label class="note">${k}<input type="number" step="any" min="0" name="${k}" value="${MET.defaults[k]}"></label>`).join("")
+   +`<label class="note">Month<select name="Month">${Array.from({length:12},(_,i)=>`<option ${i===0?"selected":""}>${i+1}</option>`).join("")}</select></label>`
+   +`<button class="btn" type="submit">Predict AQI</button>`;
+  f.onsubmit=e=>{e.preventDefault();const x={};new FormData(f).forEach((v,k)=>x[k]=parseFloat(v)||0);
+    const a=predict(x),b=bucket(a);$("aqiVal").textContent=Math.round(a);$("badge").textContent=b;$("badge").style.background=COLORS[b];$("result").hidden=false};
+}
+
+document.querySelectorAll(".tab").forEach(t=>t.onclick=()=>{
+  document.querySelectorAll(".tab,.panel").forEach(e=>e.classList.remove("active"));
+  t.classList.add("active");$(t.dataset.p).classList.add("active");
+  window.dispatchEvent(new Event("resize"));
+});
+
+Promise.all(["data.json","model.json","metrics.json"].map(u=>fetch(u).then(r=>r.json()))).then(([d,m,met])=>{
+  D=d;M=m;MET=met;
+  const cities=[...new Set(D.rows.map(r=>r.c))].sort(),def=["Delhi","Mumbai","Bengaluru","Kolkata","Chennai","Lucknow"];
+  $("cities").innerHTML=cities.map(c=>`<option ${def.includes(c)?"selected":""}>${c}</option>`).join("");
+  const yrs=[2015,2016,2017,2018,2019,2020];
+  $("y0").innerHTML=yrs.map(y=>`<option>${y}</option>`).join("");
+  $("y1").innerHTML=yrs.map(y=>`<option ${y===2020?"selected":""}>${y}</option>`).join("");
+  $("pol").innerHTML=POL.map(p=>`<option>${p}</option>`).join("");
+  ["cities","y0","y1","pol"].forEach(id=>$(id).onchange=render);
+  initStatic();render();
+}).catch(e=>{document.querySelector(".wrap").insertAdjacentHTML("beforeend",`<p class="note">Failed to load data: ${e}</p>`)});
+</script>
+</body>
+</html>
